@@ -44,6 +44,9 @@ from torch.utils.data import DataLoader, Dataset
 #this is set for the printing of Q-matrices via console
 torch.set_printoptions(precision=3, sci_mode=False, linewidth=100)
 
+#Uncomment if GPU is to be used - right now use CPU, as we have very small networks and for them, CPU is actually faster
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 from tqdm.auto import tqdm, trange
 
 

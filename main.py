@@ -1,152 +1,82 @@
+from fixed_parameters import *
+from changeable_parameters import *
 
-import gc
-import gym
-import math as mt
-import scipy as sp
-import random
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import matplotlib.patches as mpatches
-from matplotlib.ticker import ScalarFormatter
-from matplotlib.font_manager import FontProperties
-from collections import namedtuple, deque
-from itertools import count
-from PIL import Image
-import networkx as nx
-import pickle as pkl
-import itertools
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
-from pycolormap_2d import ColorMap2DBremm, ColorMap2DZiegler
-import time
-import os #for creating directories
-from scipy.optimize import curve_fit
-from typing import Union, Optional
-import umap.umap_ as umap
+from src.execution.q_matrix_generation import *
+from src.execution.language_training import *
+from src.execution.calculate_student_performance import *
+from src.execution.task_vectors import *
+from src.execution.entropy_binning import *
 
-#for jupyter widget progress bar
-# from google.colab import output
-# output.enable_custom_widget_manager()
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torchvision.transforms as T
-from torch.utils.data import DataLoader, Dataset
-#this is set for the printing of Q-matrices via console
-torch.set_printoptions(precision=3, sci_mode=False, linewidth=100)
-
-from tqdm.auto import tqdm, trange
-
-
-#Uncomment if GPU is to be used - right now use CPU, as we have very small networks and for them, CPU is actually faster
+# Uncomment if GPU is to be used - right now use CPU, as we have very small networks and for them, CPU is actually faster
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-#suppress scientific notation in printouts
-np.set_printoptions(suppress=True)
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-
-
-#-----------------------------------------------------------------------------------------------------------------------
-#@title 3. INIT - Fixed parameters
-#-----------------------------------------------------------------------------------------------------------------------
-
-grid_dim: int=4 #side length of the square gridworld
-n_actions: int=4 #how many actions are possible in each state
-student_init: int=0 #initial state where the student is always starting - states are indexed as follows (example for the 4x4 mazes):
-# 12 13 14 15
-#  8  9 10 11
-#  4  5  6  7
-#  0  1  2  3
-lava: bool=False #do we use lava states - i.e. accessible wall states - (True) or wall states (False)? (we now always use "False")
-data_shape: 'tuple[int,int,int]'=(n_actions,grid_dim,grid_dim) #Q matrix shape
-
-
-#rewards in the gridworld
-step_reward: float=-0.1 #for taking a step
-goal_reward: float=2. #for reaching the goal
-wall_reward: float=-0.5 #for bumping into a wall
-
-
-#teacher network parameters for learning Q-matrices
-qmat_gen: bool=False #generate new Q-matrices?
-accuracy=20 #how accurate do the final Q-matrices have to be compared to the "perfect" ones, which can be calculated by table lookup? (in terms of vector 1-norm)
-max_attempts=3 #limit the attempts we give the teacher to calculate a Q-matrix that lies within the accuracy bound
-wall_state_dict={0:[]} #only in case of new Q-matrix generation, we index all the mazes, and calculate a Q-matrix for every possible goal location in each maze
-gamma_bellman: float=0.99 #temporal discount factor used in the Bellman equation of the teacher networks
-L: int=50 #short term memory size of teacher learning Q-matrices
-lr_teacher: float=3e-3 #learning rate for the teachers
-
-
-#autoencoder network parameters for generating the language
-language_gen: bool=False #generate a new language?
-K: int=5 #length of the message vectors
-gamma_sparse=1/20*mt.sqrt(grid_dim**2*n_actions/K) #how important is the sparsity loss compared to reconstruction loss
-                                                   #we have the square root here to compare individual entries (in both cases take the overall 2-norm)
-kappa=1/500 #balances how much focus is put on regularization, compared to the probability of finding the goal (for the student)
-learning_rate_autoenc=5e-4 #learning rate of the autoencoder-student network
-training_epochs=50 #number of training epochs for the autoencoder
-zeta_std=5 #the zeta parameter (std: "student") for the loss function
-
-#message space PCA (and t-SNE) plots
-do_tsne_message_plots=True #do t-SNE plots as well?
-do_umap_message_plots=True #do UMAP plots as well?
-plot_worlds=range(16) #all these worlds are included in the main plot - can not be more than 20 at the moment due to the color cycler -> range(16) are all training worlds
-plot_worlds_single=[6] #create individual plots for all of the worlds included in this list
-nonlinear_ae_plots=True if language_code.__contains__("nonlinear") else False #does the autoencoder have nonlinear activations?
-nonlinear_std_plots=True if (language_code.__contains__("nonlinear") or language_code.__contains__("linear_ae")) else False #does the student have nonlinear activations?
-save_message_plots=False #save the plots?
-
-#evaluate the student agent's performance (calculate goal finding success rates)
-student_evaluate: bool=False
-save_rates: bool=True #save the goal finding success rates
-
-#autoencoder loss plots
-epskip=50 #skip first few epochs to have narrower loss range and see details better
-save_autoenc_lossplots=False #save the autoencoder plots?
-
-#plot the student performances for different amounts of steps allowed for the students ("stepfactors")
-folder_stepfactor_plots="nonlinear_goallocs0_zeta5_factor1"
-language_nr_stepfactor_plots=5
-stepfactor_list_plots=[1,1.5,2,2.5,3,3.5,4]
-rdrates_list_plots=[]
-save_stepfactor_plots=False #save the plots?
-
-#plot the student performances for different groups of goal locations trained
-goal_groups_plots=np.array([0,1,2,3,4,5,6]) #include those groups in the plot
-stepfactor_goalloc_plots=2
-rdrate_goalloc_plots=0.25
-save_goalloc_plots=False #save the plots?
-
-#closing the loop
-closingloop_nonlinear_ae=True #do the neurons in the autoencoder have nonlinear activations?
-closingloop_nonlinear_std=True #do the neurons in the student have nonlinear activations?
-save_closingloop_plots=False #save the plots?
-
-#topographic similarity analysis (Fig. 3b,c)
-norm_topo=2 #which norm to use for meaning distances, i.e. task vectors and Q-matrices
-n_bins_topo=20 #how many bins on the x-axis of the plot?
-
-#entropy analysis through binning (Fig. 3e)
-H_binlist=np.linspace(8,62,10).astype(int) #list of number of bins to calculate entropy from
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    print("Hello world!")
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # 01 - q_matrix_generation
+    print("Q-matrix generation...")
+    qmat_save_code: str = "dummy"  # file for saving newly generated Q-matrices (if qmat_gen=True)
+    q_matrix_dict, wall_state_dict, label_dict = generate_qmat(wall_state_dict, qmat_gen)
+    label_dict = insert_shortest_path_length(label_dict)
+    print("done!")
+
+    # 02-language-training
+    print("Language training...")
+    message_dict = train_language(q_matrix_dict, label_dict, language_gen)
+    print("done!")
+    # ------------------------------------------------------------------------------------------------------------------
+    # 03 - calculate_student_performance
+    # ------------------------------------------------------------------------------------------------------------------
+
+    # todo: do this also for 1 and 2
+    random_repeat = 5  # randomness repetition for misinformed students
+    rdwalker_base_rates = []  # baseline random walker rates we set for each task (values like 0.1 for 10% and 0.2 for 20%)
+    stepfactors = [2]  # number of steps we allow for the student in terms of shortest path length for each task
+    methods = [
+        "no_learning"]  # could choose "no_learning" (action choice by percentages) and/or "simple_learning" (greedy action choices, but if you come back to a state you take the next best action)
+
+    # "known" for trained worlds or "unknown" for untrained worlds
+    if qmat_read_code == "training4x4":
+        known_addon = "known"
+    elif qmat_read_code == "test4x4":
+        known_addon = "unknown"
+    else:
+        known_addon = None
+
+    # Parameters specified by the languages we want to evaluate
+    goal_locs = [0]  # list of trained goal locations
+
+    language_nr_evaluation = 1  # number of languages to evaluate (assume it's the same for all different goal locations)
+    language_codes = [f"test_language"]
+    saving_folders = [f"test_language_{known_addon}"]
+    evalute_nonlinear_ae, evaluate_nonlinear_std = True, True  # are the activations in the autoencoder/student nonlinear?
+
+    if student_evaluate:
+        print("Compute student performance...")
+        evaluate_students(label_dict, q_matrix_dict)  # todo: this doesn't work on the notebook as well
+        print("done!")
+    else:
+        print("Skipping student evaluation.")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # 10 - create task vectors and do topographical similarity analysis
+    # ------------------------------------------------------------------------------------------------------------------
+    print("Doing topographical analysis...")
+    indicatorvector_dict, indicatorvector_dictw = create_goal_wall_indicator(label_dict,
+                                                                             goal_reward=goal_reward,
+                                                                             wall_reward=wall_reward)
+
+    calculate_distance_between_message_pairs(q_matrix_dict, indicatorvector_dict, indicatorvector_dictw)
+    print("done!")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # 12 - Calculate entropy of message and other distributions
+    # ------------------------------------------------------------------------------------------------------------------
+    print("Calculating entropies...")
+    H_language_codes, Hm_arrs, Hq_arrs, Hp_arrs = compute_all_entropies(label_dict, q_matrix_dict)
+    print("done!")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # 14 - Calculate entropy of message and other distributions
+    # ------------------------------------------------------------------------------------------------------------------

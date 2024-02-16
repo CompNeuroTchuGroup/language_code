@@ -1,6 +1,10 @@
 #@title 4. FUNCTIONS - Helper functions
 
 
+
+from fixed_parameters import *
+from changeable_parameters import *
+
 import math as mt
 import pickle as pkl
 import random
@@ -11,6 +15,8 @@ import torch
 from scipy.optimize import curve_fit
 
 #Uncomment if GPU is to be used - right now use CPU, as we have very small networks and for them, CPU is actually faster
+from autoencoder_def import ConvAutoEncoder
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #suppress scientific notation in printouts

@@ -79,45 +79,63 @@ evalute_nonlinear_ae, evaluate_nonlinear_std = True, True #are the activations i
 #first choice if we are doing 'closing the loop', i.e. using the student Q-matrices for creating messages (which are different for every language)
 #and second choice if we take regular teacher Q-matrices for creating messages
 #q_matrix_dict_list=[read_dict_from_pkl(file_loc+f"closing the loop/test_language_language0/studentQmatrices.pkl")]
-q_matrix_dict_list=[q_matrix_dict]*len(language_codes)*language_nr_evaluation
+
 
 
 
 
 gc.enable() #garbage collector enabled to free RAM
-if student_evaluate:
-    for step_rate_bool in [True,False]: #evaluation for all stepfactors (True) and for all random walker base rates (False) listed above
-        if step_rate_bool:
-            rdwalker_base_rate=0
-        elif not step_rate_bool:
-            stepfactor=0
 
-        #a)evaluate solving rates for different stepfactors
+
+def evaluate_students(label_dict, q_matrix_dict):
+    q_matrix_dict_list = [q_matrix_dict] * len(language_codes) * language_nr_evaluation
+
+    for step_rate_bool in [True,
+                           False]:  # evaluation for all stepfactors (True) and for all random walker base rates (False) listed above
+        if step_rate_bool:
+            rdwalker_base_rate = 0
+        elif not step_rate_bool:
+            stepfactor = 0
+
+        # a)evaluate solving rates for different stepfactors
         if step_rate_bool:
             for stepfactor in stepfactors:
-                i=0
+                i = 0
                 for lcode_eval, saving_folder in zip(language_codes, saving_folders):
-                    #first calculate random walker rates (identical for all languages, but need to do several times, because of saving procedure..)
-                    solving_steps_rd, solving_steps_smartrd=random_walker_rates(saving_folder, language_nr_evaluation, step_rate_bool, rdwalker_base_rate, stepfactor, label_dict)
+                    # first calculate random walker rates (identical for all languages, but need to do several times, because of saving procedure..)
+                    solving_steps_rd, solving_steps_smartrd = random_walker_rates(saving_folder, language_nr_evaluation,
+                                                                                  step_rate_bool, rdwalker_base_rate,
+                                                                                  stepfactor, label_dict)
                     gc.collect()
                     for language_nr in range(language_nr_evaluation):
                         for method in methods:
-                            #next calculate rates for misinformed and informed students
-                            student_performance_evaluator(lcode_eval, saving_folder, language_nr, method, random_repeat, step_rate_bool, solving_steps_rd, rdwalker_base_rate, stepfactor, label_dict, q_matrix_dict_list[i], evalute_nonlinear_ae, evaluate_nonlinear_std)
+                            # next calculate rates for misinformed and informed students
+                            student_performance_evaluator(lcode_eval, saving_folder, language_nr, method, random_repeat,
+                                                          step_rate_bool, solving_steps_rd, rdwalker_base_rate,
+                                                          stepfactor, label_dict, q_matrix_dict_list[i],
+                                                          evalute_nonlinear_ae, evaluate_nonlinear_std)
                             gc.collect()
-                        i+=1
+                        i += 1
 
-        #a)evaluate solving rates for different baseline random walker baseline solving rates
+        # a)evaluate solving rates for different baseline random walker baseline solving rates
         elif not step_rate_bool:
             for rdwalker_base_rate in rdwalker_base_rates:
-                i=0
+                i = 0
                 for lcode_eval, saving_folder in zip(language_codes, saving_folders):
-                    #first calculate random walker steps for the baseline solving rate (identical for all languages, but need to do several times, because of saving procedure..)
-                    solving_steps_rd, solving_steps_smartrd=random_walker_rates(saving_folder, language_nr_evaluation, step_rate_bool, rdwalker_base_rate, stepfactor, label_dict)
+                    # first calculate random walker steps for the baseline solving rate (identical for all languages, but need to do several times, because of saving procedure..)
+                    solving_steps_rd, solving_steps_smartrd = random_walker_rates(saving_folder, language_nr_evaluation,
+                                                                                  step_rate_bool, rdwalker_base_rate,
+                                                                                  stepfactor, label_dict)
                     gc.collect()
                     for language_nr in range(language_nr_evaluation):
                         for method in methods:
-                            #next calculate rates for misinformed and informed students and give them the steps the random walkers needed
-                            student_performance_evaluator(lcode_eval, saving_folder, language_nr, method, random_repeat, step_rate_bool, solving_steps_rd, rdwalker_base_rate, stepfactor, label_dict, q_matrix_dict_list[i], evalute_nonlinear_ae, evaluate_nonlinear_std)
+                            # next calculate rates for misinformed and informed students and give them the steps the random walkers needed
+                            student_performance_evaluator(lcode_eval, saving_folder, language_nr, method, random_repeat,
+                                                          step_rate_bool, solving_steps_rd, rdwalker_base_rate,
+                                                          stepfactor, label_dict, q_matrix_dict_list[i],
+                                                          evalute_nonlinear_ae, evaluate_nonlinear_std)
                             gc.collect()
-                        i+=1
+                        i += 1
+
+
+

@@ -59,27 +59,27 @@ nonlinear_ae_train, nonlinear_std_train=True, True #do autoencoder/student netwo
 language_number_autoenc=1 #how many languages with the same parameters and different seeds are trained?
 language_save_code=f"test_language" #this list and the two following need to have the same length (will be zipped together)
 
-if language_gen:
 
-    train_goals=train_goals_dict[train_goals_index] #pick the goals we train on
-    for language_index in range(language_number_autoenc): #create several languages to reduce variance
+def generate_language(label_dict, q_matrix_dict): #todo: check which other parameters are required here
+    train_goals = train_goals_dict[train_goals_index]  # pick the goals we train on
+    for language_index in range(language_number_autoenc):  # create several languages to reduce variance
 
-        language_save_codex=language_save_code
-        if language_number_autoenc>0:
-            language_save_codex=language_save_code+f"_language{language_index}"
+        language_save_codex = language_save_code
+        if language_number_autoenc > 0:
+            language_save_codex = language_save_code + f"_language{language_index}"
 
-        goal_world_inds, _,_,_ = task_indices_sorter(label_dict, train_worlds, train_goals)
-        #create the dataset for the network to train on from the training indices
-        q_matrix_dict_train, label_dict_train = {},{}
-        #filter out only the relevant tasks (maze in train_worlds, goal in train_goals)
-        for task_counter,ind in enumerate(goal_world_inds):
-            q_matrix_dict_train[task_counter]=q_matrix_dict[ind]
-            label_dict_train[task_counter]=label_dict[ind]
+        goal_world_inds, _, _, _ = task_indices_sorter(label_dict, train_worlds, train_goals)
+        # create the dataset for the network to train on from the training indices
+        q_matrix_dict_train, label_dict_train = {}, {}
+        # filter out only the relevant tasks (maze in train_worlds, goal in train_goals)
+        for task_counter, ind in enumerate(goal_world_inds):
+            q_matrix_dict_train[task_counter] = q_matrix_dict[ind]
+            label_dict_train[task_counter] = label_dict[ind]
 
-        #create dataset
+        # create dataset
         matrix_dataset = MatrixDataset(q_matrix_dict_train, label_dict_train)
 
-        #initialize network and optimizer
+        # initialize network and optimizer
         autoencoder = ConvAutoEncoder(data_shape, K, nonlinear_ae_train, nonlinear_std_train).to(device)
         optimizer = torch.optim.Adam(autoencoder.parameters(), lr=learning_rate_autoenc)
 
@@ -100,38 +100,55 @@ if language_gen:
         optimizer = torch.optim.Adam(autoencoder.parameters(), lr=learning_rate_autoenc)
         '''
 
-        #training with student feedback
-        losses2, rec_losses2, spar_losses2 = train_autoencoder(autoencoder, optimizer, matrix_dataset, wall_state_dict,
-                                        gamma_sparse,zeta_std, kappa, training_epochs, batch_size, True, train_order)
+        # training with student feedback
+        losses2, rec_losses2, spar_losses2 = train_autoencoder(autoencoder, optimizer, matrix_dataset,
+                                                               wall_state_dict,
+                                                               gamma_sparse, zeta_std, kappa, training_epochs,
+                                                               batch_size, True, train_order)
 
-        goal_losses2=(losses2-(1-gamma_sparse)*rec_losses2-gamma_sparse*spar_losses2)/zeta_std
+        goal_losses2 = (losses2 - (1 - gamma_sparse) * rec_losses2 - gamma_sparse * spar_losses2) / zeta_std
 
-        #save autoencoder parameters and losses
-        torch.save(autoencoder.state_dict(), file_loc+"autoencoder/autoencoder network parameters/"+f"params_autoenc{language_save_codex}.pt")
-        torch.save(optimizer.state_dict(), file_loc+"autoencoder/optimizer parameters/"+f"optimizer{language_save_codex}.pt")
-        np.savetxt(file_loc+f"autoencoder/losses/losses2_{language_save_codex}.txt", losses2)
-        np.savetxt(file_loc+f"autoencoder/losses/rec_losses2_{language_save_codex}.txt",rec_losses2)
-        np.savetxt(file_loc+f"autoencoder/losses/spar_losses2_{language_save_codex}.txt",spar_losses2)
-        np.savetxt(file_loc+f"autoencoder/losses/goal_losses2_{language_save_codex}.txt",goal_losses2)
+        # save autoencoder parameters and losses
+        torch.save(autoencoder.state_dict(),
+                   file_loc + "autoencoder/autoencoder network parameters/" + f"params_autoenc{language_save_codex}.pt")
+        torch.save(optimizer.state_dict(),
+                   file_loc + "autoencoder/optimizer parameters/" + f"optimizer{language_save_codex}.pt")
+        np.savetxt(file_loc + f"autoencoder/losses/losses2_{language_save_codex}.txt", losses2)
+        np.savetxt(file_loc + f"autoencoder/losses/rec_losses2_{language_save_codex}.txt", rec_losses2)
+        np.savetxt(file_loc + f"autoencoder/losses/spar_losses2_{language_save_codex}.txt", spar_losses2)
+        np.savetxt(file_loc + f"autoencoder/losses/goal_losses2_{language_save_codex}.txt", goal_losses2)
+    return autoencoder
 
 
-#load stored autoencoder network parameters
-if not language_gen:
-    autoencoder = ConvAutoEncoder(data_shape, K, nonlinear_ae_plots, nonlinear_std_plots).to(device)
-    autoencoder.load_state_dict(torch.load(file_loc+"autoencoder/autoencoder network parameters/"+f"params_autoenc{language_code}.pt"))
-    autoencoder.eval()
+def train_language(q_matrix_dict, label_dict, language_gen):
+    if language_gen:
+        #train autoencoder from scratch
+        autoencoder = generate_language(label_dict, q_matrix_dict)
 
-    '''
-    #only load optimizer if necessary, e.g. if training was interrupted - then parameters can be specified
-    optimizer=torch.optim.Adam(autoencoder.parameters(), lr=learning_rate_autoenc)
-    optimizer.load_state_dict(torch.load(file_loc+"autoencoder/optimizer parameters/"+f"optimizer{language_code}.pt", map_location=torch.device(device)))
-    '''
+    if not language_gen:
+        # load stored autoencoder network parameters
+        autoencoder = ConvAutoEncoder(data_shape, K, nonlinear_ae_plots, nonlinear_std_plots).to(device) #todo:put this parameters in the function
+        autoencoder.load_state_dict(
+            torch.load(file_loc + "autoencoder/autoencoder network parameters/" + f"params_autoenc{language_code}.pt"))
+        autoencoder.eval()
 
-#create a message dictionary, with indices corresponding to the task indices
-message_dict={}
-for task_index,q_matrix in q_matrix_dict.items():
-    q_matrix=torch.unsqueeze(q_matrix,0) #need this because the autoencoder always expects batches of inputs!
-    message=autoencoder.encode(q_matrix)[0]
-    message_dict[task_index]=message
+        '''
+        #only load optimizer if necessary, e.g. if training was interrupted - then parameters can be specified
+        optimizer=torch.optim.Adam(autoencoder.parameters(), lr=learning_rate_autoenc)
+        optimizer.load_state_dict(torch.load(file_loc+"autoencoder/optimizer parameters/"+f"optimizer{language_code}.pt", map_location=torch.device(device)))
+        '''
+    # create a message dictionary, with indices corresponding to the task indices
+    message_dict = {}
+    for task_index, q_matrix in q_matrix_dict.items():
+        q_matrix = torch.unsqueeze(q_matrix, 0)  # need this because the autoencoder always expects batches of inputs!
+        message = autoencoder.encode(q_matrix)[0]
+        message_dict[task_index] = message
+
+    return message_dict
+
+
+
+
+
 
 
