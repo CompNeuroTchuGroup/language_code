@@ -35,12 +35,7 @@ def generate_qmat(wall_state_dict, qmat_gen):
         label_dict = create_label_dictionary(wall_state_dict)
         # first generate the perfect deterministic Q-matrices
         perfect_qdict = q_matrix_generator_deterministic(label_dict, wall_state_dict)
-        '''
-        lp = LineProfiler()
-        lp_wrapper = lp(q_matrix_generator)
-        lp_wrapper(wall_state_dict, perfect_q_matrices_dict)
-        lp.print_stats()
-        '''
+
         # Then use the DQN and the perfect matrices as a check
         q_matrix_dict = q_matrix_generator(label_dict, wall_state_dict, perfect_qdict, accuracy, max_attempts)
         # write calculated q matrices into file
@@ -50,7 +45,7 @@ def generate_qmat(wall_state_dict, qmat_gen):
                             file_loc + "teacher/label dictionaries/" + f"q_matrices_labels{qmat_save_code}.pkl")
         write_dict_into_pkl(wall_state_dict,
                             file_loc + "teacher/wall state dictionaries/" + f"wall_states{qmat_save_code}.pkl")
-    if not qmat_gen:
+    else:
         # read Q-matrices from a pre-generated file
         wall_state_dict = read_dict_from_pkl(
             file_loc + "teacher/wall state dictionaries/" + f"wall_states{qmat_read_code}.pkl")
@@ -79,6 +74,6 @@ def insert_shortest_path_length(label_dict):
 
 
 
-qmat_save_code: str = "dummy"  # file for saving newly generated Q-matrices (if qmat_gen=True)
-q_matrix_dict, wall_state_dict, label_dict = generate_qmat(wall_state_dict, qmat_gen)
-label_dict = insert_shortest_path_length(label_dict)
+# qmat_save_code: str = "dummy"  # file for saving newly generated Q-matrices (if qmat_gen=True)
+# q_matrix_dict, wall_state_dict, label_dict = generate_qmat(wall_state_dict, qmat_gen)
+# label_dict = insert_shortest_path_length(label_dict)

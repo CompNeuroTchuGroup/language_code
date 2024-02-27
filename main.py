@@ -12,12 +12,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print("Hello world!")
 
     # 01 - q_matrix_generation
     print("Q-matrix generation...")
     qmat_save_code: str = "dummy"  # file for saving newly generated Q-matrices (if qmat_gen=True)
-    q_matrix_dict, wall_state_dict, label_dict = generate_qmat(wall_state_dict, qmat_gen)
+    q_matrix_dict, wall_state_dict, label_dict = generate_qmat(wall_state_dict, qmat_gen=True)
     label_dict = insert_shortest_path_length(label_dict)
     print("done!")
 
@@ -25,6 +24,7 @@ if __name__ == '__main__':
     print("Language training...")
     message_dict = train_language(q_matrix_dict, label_dict, language_gen)
     print("done!")
+
     # ------------------------------------------------------------------------------------------------------------------
     # 03 - calculate_student_performance
     # ------------------------------------------------------------------------------------------------------------------

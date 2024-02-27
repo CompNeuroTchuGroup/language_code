@@ -141,7 +141,7 @@ def q_matrix_generator(label_dict: 'dict[int,tuple[int, int, int]]', wall_state_
             else:
                 counter+=1
         #plt.plot(range(num_eps),ep_steps)
-        plt.show()
+        #plt.show() #todo:what is this?
     return qdict
 
 
